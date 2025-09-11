@@ -1,5 +1,4 @@
 package com.Backend.Backend.Models;
-
 import jakarta.persistence.*;
 import java.time.LocalDate;
 
@@ -31,4 +30,3 @@ public class Task {
     public User getUser() { return user; }
     public void setUser(User user) { this.user = user; }
 }
-

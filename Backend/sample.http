@@ -3,7 +3,7 @@ POST http://localhost:8080/users
 Content-Type: application/json
 
 {
-  "email": "john@example.com",
+  "email": "sujith@example.com",
   "password": "secret123"
 }
 
@@ -14,7 +14,7 @@ POST http://localhost:8080/tasks/john@example.com
 Content-Type: application/json
 
 {
-  "title": "Finish Spring Boot app",
+  "title": "Good",
   "taskDate": "2025-09-12"
 }
 ###
