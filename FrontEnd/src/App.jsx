@@ -10,6 +10,12 @@ const App = () => {
   const baseUrl = "http://localhost:8080";
   const token = useMemo(() => localStorage.getItem("token") || "", []);
 
+  const logout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("hash");
+    window.location.href = "/v1/auth";
+  };
+
   const loadTasks = async () => {
     const res = await fetch(`${baseUrl}/tasks`, { headers: { Authorization: `Bearer ${token}` } });
     const data = await res.json();
@@ -57,7 +63,10 @@ const App = () => {
       <header className="border-b border-neutral-800">
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
           <h1 className="text-xl font-semibold">Knot Tasks</h1>
-          <div className="text-sm text-neutral-400">Secure workspace</div>
+          <div className="flex items-center gap-3">
+            <div className="text-sm text-neutral-400">Secure workspace</div>
+            <button className="btn-danger" onClick={logout}>Logout</button>
+          </div>
         </div>
       </header>
 
