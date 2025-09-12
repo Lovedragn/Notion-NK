@@ -2,34 +2,33 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router";
 
 const App = () => {
-  const { [":undefined"]: dynamicSegment } = useParams();
-  const emailFromPath = useMemo(() => {
-    const path = window.location.pathname;
-    return decodeURIComponent(path.slice(1));
-  }, []);
-
-  const email = emailFromPath || dynamicSegment;
+  const { hash } = useParams();
 
   const [tasks, setTasks] = useState([]);
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
   const baseUrl = "http://localhost:8080";
+  const token = useMemo(() => localStorage.getItem("token") || "", []);
 
   const loadTasks = async () => {
-    const res = await fetch(`${baseUrl}/tasks/${email}`);
+    const res = await fetch(`${baseUrl}/tasks`, { headers: { Authorization: `Bearer ${token}` } });
     const data = await res.json();
-    setTasks(data);
+    console.log("tasks api response", data);
+    const normalized = Array.isArray(data)
+      ? data
+      : (data && typeof data === "object" ? Object.values(data) : []);
+    setTasks(normalized);
   };
 
   useEffect(() => {
-    if (email) loadTasks();
-  }, [email]);
+    loadTasks();
+  }, []);
 
   const addTask = async (e) => {
     e.preventDefault();
-    const res = await fetch(`${baseUrl}/tasks/${email}`, {
+    const res = await fetch(`${baseUrl}/tasks/hash/${hash}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ title, taskDate: date }),
     });
     if (res.ok) {
@@ -42,59 +41,82 @@ const App = () => {
   const updateTask = async (id, next) => {
     const res = await fetch(`${baseUrl}/tasks/${id}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify(next),
     });
     if (res.ok) loadTasks();
   };
 
   const deleteTask = async (id) => {
-    const res = await fetch(`${baseUrl}/tasks/${id}`, { method: "DELETE" });
+    const res = await fetch(`${baseUrl}/tasks/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
     if (res.ok) loadTasks();
   };
 
   return (
-    <div className="bg-black min-h-screen text-white p-6">
-      <div className="max-w-xl mx-auto">
-        <h1 className="text-2xl mb-4">Tasks for {email}</h1>
+    <div className="min-h-screen">
+      <header className="border-b border-neutral-800">
+        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
+          <h1 className="text-xl font-semibold">Knot Tasks</h1>
+          <div className="text-sm text-neutral-400">Secure workspace</div>
+        </div>
+      </header>
 
-        <form onSubmit={addTask} className="flex gap-2 mb-6">
-          <input
-            className="input flex-1"
-            placeholder="Title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            required
-          />
-          <input
-            type="date"
-            className="input"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            required
-          />
-          <button className="btn-l" type="submit">Add</button>
-        </form>
+      <main className="max-w-4xl mx-auto px-6 py-8">
+        <div className="card p-4 mb-6">
+          <form onSubmit={addTask} className="flex flex-col sm:flex-row gap-3">
+            <input
+              className="input flex-1"
+              placeholder="Task title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+            />
+            <input
+              type="date"
+              className="input"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              required
+            />
+            <button className="btn-primary" type="submit">Add</button>
+          </form>
+        </div>
 
-        <ul className="flex flex-col gap-2">
-          {tasks.map((t) => (
-            <li key={t.id} className="flex items-center gap-2 bg-zinc-900 p-3 rounded">
-              <input
-                className="input flex-1"
-                value={t.title}
-                onChange={(e) => updateTask(t.id, { ...t, title: e.target.value })}
-              />
-              <input
-                type="date"
-                className="input"
-                value={t.taskDate || ""}
-                onChange={(e) => updateTask(t.id, { ...t, taskDate: e.target.value })}
-              />
-              <button className="btn-l" onClick={() => deleteTask(t.id)}>Delete</button>
-            </li>
-          ))}
-        </ul>
-      </div>
+        <div className="card overflow-hidden">
+          <div className="grid grid-cols-12 px-4 py-3 border-b border-neutral-700 text-xs uppercase tracking-wide text-neutral-400 sticky top-0 bg-neutral-900/90 backdrop-blur">
+            <div className="col-span-7">Title</div>
+            <div className="col-span-3">Date</div>
+            <div className="col-span-2 text-right">Actions</div>
+          </div>
+          <div className="max-h-[60vh] overflow-y-auto">
+            {tasks.map((t) => (
+              <div key={t.id} className="grid grid-cols-12 gap-3 px-4 py-3 border-b border-neutral-800 items-center odd:bg-neutral-900/40 even:bg-neutral-950/40">
+                <div className="col-span-7">
+                  <input
+                    className="input w-full"
+                    value={t.title}
+                    onChange={(e) => updateTask(t.id, { ...t, title: e.target.value })}
+                  />
+                </div>
+                <div className="col-span-3">
+                  <input
+                    type="date"
+                    className="input w-full"
+                    value={t.taskDate || ""}
+                    onChange={(e) => updateTask(t.id, { ...t, taskDate: e.target.value })}
+                  />
+                </div>
+                <div className="col-span-2 flex justify-end">
+                  <button className="btn-danger" onClick={() => deleteTask(t.id)}>Delete</button>
+                </div>
+              </div>
+            ))}
+            {tasks.length === 0 && (
+              <div className="px-4 py-6 text-neutral-400 text-sm">No tasks yet. Create your first task above.</div>
+            )}
+          </div>
+        </div>
+      </main>
     </div>
   );
 };

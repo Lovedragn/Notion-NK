@@ -5,13 +5,12 @@ import { createBrowserRouter, Navigate, RouterProvider } from "react-router";
 import App from "./App.jsx";
 import Login from "./Auth/Login.jsx";
 
-const storedUser = localStorage.getItem("user");
-const user = storedUser ? JSON.parse(storedUser) : {};
-const { email } = user;
+const token = localStorage.getItem("token");
+const hash = localStorage.getItem("hash");
 
 const router = createBrowserRouter([
-  { path: "/", element : <Navigate to={"v1/auth"} replace/> },
-  { path: `/:${email || 'email'}`, element: <App /> },
+  { path: "/", element : <Navigate to={ hash ? `/${hash}` : "v1/auth" } replace/> },
+  { path: `/:hash`, element: <App /> },
   { path: "/v1/auth", element: <Login /> },
 ]);
 

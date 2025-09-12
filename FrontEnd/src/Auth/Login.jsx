@@ -13,9 +13,14 @@ const Login = () => {
         }),
       });
       const data = await response.json();
-      if (data?.email) {
-        localStorage.setItem("user", JSON.stringify({ email: data.email }));
-        window.location.href = `/${data.email}`;
+      if (data?.token) {
+        const token = data.token;
+        const payloadPart = token.split(".")[1];
+        const payloadJson = JSON.parse(atob(payloadPart.replace(/-/g, "+").replace(/_/g, "/")));
+        const hash = payloadJson.hash;
+        if (token) localStorage.setItem("token", token);
+        if (hash) localStorage.setItem("hash", hash);
+        if (hash) window.location.href = `/${hash}`;
       }
     } catch (error) {
       console.log(error);
