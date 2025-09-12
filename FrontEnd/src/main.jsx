@@ -3,17 +3,16 @@ import "./index.css";
 import { createBrowserRouter, Navigate, RouterProvider } from "react-router";
 
 import App from "./App.jsx";
-
-const VITE_APP_GOOGLE_CLIENT_ID = import.meta.env.VITE_APP_GOOGLE_CLIENT_ID;
+import Login from "./Auth/Login.jsx";
 
 const storedUser = localStorage.getItem("user");
 const user = storedUser ? JSON.parse(storedUser) : {};
-const { address } = user;
+const { email } = user;
 
 const router = createBrowserRouter([
-  { path: "/", element : <Navigate to={"auth/v1/google"} replace/> },
-  { path: `/:${address}`, element: <App /> },
-  { path: "/auth/v1/google", element: <Login /> },
+  { path: "/", element : <Navigate to={"v1/auth"} replace/> },
+  { path: `/:${email || 'email'}`, element: <App /> },
+  { path: "/v1/auth", element: <Login /> },
 ]);
 
 createRoot(document.getElementById("root")).render(

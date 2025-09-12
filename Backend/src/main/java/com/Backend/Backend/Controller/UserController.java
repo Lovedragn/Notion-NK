@@ -7,10 +7,12 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/users")
+@CrossOrigin(origins = "http://localhost:5173")
 public class UserController {
 
     @Autowired
     private UserRepository userRepository;
+
 
     @PostMapping
     public User createUser(@RequestBody User user) {

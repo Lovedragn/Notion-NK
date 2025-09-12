@@ -8,6 +8,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/tasks")
+@CrossOrigin(origins = "http://localhost:5173")
 public class TaskController {
 
     @Autowired
@@ -29,5 +30,24 @@ public class TaskController {
     @GetMapping("/{email}")
     public List<Task> getTasksByUser(@PathVariable String email) {
         return taskRepository.findByUserEmail(email);
+    }
+
+    @GetMapping("/id/{id}")
+    public Task getTaskById(@PathVariable Long id) {
+        return taskRepository.findById(id).orElseThrow(() -> new RuntimeException("Task not found"));
+    }
+
+    @PutMapping("/{id}")
+    public Task updateTask(@PathVariable Long id, @RequestBody Task updated) {
+        Task existing = taskRepository.findById(id).orElseThrow(() -> new RuntimeException("Task not found"));
+        existing.setTitle(updated.getTitle());
+        existing.setTaskDate(updated.getTaskDate());
+        return taskRepository.save(existing);
+    }
+
+    @DeleteMapping("/{id}")
+    public void deleteTask(@PathVariable Long id) {
+        if (!taskRepository.existsById(id)) throw new RuntimeException("Task not found");
+        taskRepository.deleteById(id);
     }
 }

@@ -1,1 +1,10 @@
 @import "tailwindcss";
+
+@layer base {
+  .input {
+    @apply border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500;
+  }
+  .btn-l{
+    @apply bg-blue-600 rounded-l w-full h-full py-1;
+  }
+}
