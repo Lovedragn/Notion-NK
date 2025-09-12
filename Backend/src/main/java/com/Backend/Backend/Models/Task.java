@@ -3,6 +3,7 @@ package com.Backend.Backend.Models;
 import jakarta.persistence.*;
 import lombok.Data;
 import java.time.LocalDate;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @Entity
 @Table(name = "tasks")
@@ -18,5 +19,6 @@ public class Task {
 
     @ManyToOne
     @JoinColumn(name = "user_email", referencedColumnName = "email")
+    @JsonIgnoreProperties({"password","tasks"})
     private User user;
 }

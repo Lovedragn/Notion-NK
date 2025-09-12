@@ -2,6 +2,8 @@ package com.Backend.Backend.Controller;
 
 import com.Backend.Backend.Models.User;
 import com.Backend.Backend.Models.UserRepository;
+import com.Backend.Backend.Security.Hash;
+import com.Backend.Backend.Security.JwtService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import java.util.Map;
@@ -13,6 +15,11 @@ public class LoginController {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private JwtService jwtService;
+
+    private final Hash hasher = new Hash("hash-secret-change-me");
 
     @PostMapping("/v1/auth")
     public Map<String , String> login(@RequestBody LoginRequest request) {
@@ -31,7 +38,15 @@ public class LoginController {
             userRepository.save(user);
         }
 
-        return Map.of("email", email);
+        if (user.getUrlHash() == null || user.getUrlHash().isBlank()) {
+            String hash = hasher.encode(email);
+            user.setUrlHash(hash);
+            userRepository.save(user);
+        }
+
+        String token = jwtService.generateToken(email, user.getUrlHash());
+
+        return Map.of("email", email, "hash", user.getUrlHash(), "token", token);
     }
 
 }
