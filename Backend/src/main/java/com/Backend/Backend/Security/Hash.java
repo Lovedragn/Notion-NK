@@ -5,12 +5,13 @@ import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
-public class Hash {
-    private final String secret;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
-    public Hash(String secret) {
-        this.secret = secret;
-    }
+@Component
+public class Hash {
+    @Value("${security.hash.secret:${security.jwt.secret}}")
+    private String secret;
 
     public String encode(String input) {
         try {

@@ -1,4 +1,4 @@
-package com.Backend.Backend.Models;
+package com.Backend.Backend.Entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
@@ -13,7 +13,6 @@ public class Task {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
     private String title;
     private LocalDate taskDate;
 

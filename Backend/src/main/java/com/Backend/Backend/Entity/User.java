@@ -1,4 +1,4 @@
-package com.Backend.Backend.Models;
+package com.Backend.Backend.Entity;
 
 import jakarta.persistence.*;
 import lombok.Data;

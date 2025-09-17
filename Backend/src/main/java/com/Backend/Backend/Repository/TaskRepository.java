@@ -1,5 +1,6 @@
-package com.Backend.Backend.Models;
+package com.Backend.Backend.Repository;
 
+import com.Backend.Backend.Entity.Task;
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
