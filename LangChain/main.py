@@ -249,29 +249,39 @@ def update_task(body: UpdateBody):
 	if not body.hash:
 		raise HTTPException(status_code=400, detail="hash required")
 	text = body.prompt.strip()
-	# Try to extract id first
 	import re
-	m = re.search(r"\b(\d{1,10})\b", text)
-	task_id: Optional[int] = int(m.group(1)) if m else None
+	# Accept ID only if clearly specified: '#123', 'id 123', or 'task 123'
+	id_match = re.search(r"(?:#|\b(?:id|task)\b\s*)(\d{1,10})\b", text, re.IGNORECASE)
+	task_id: Optional[int] = int(id_match.group(1)) if id_match else None
 	if not task_id:
+		# Otherwise, resolve by title within user's hash (ignoring numbers like '4 min')
 		task_id = find_task_id_by_title_fragment(body.hash, text)
 	if not task_id:
 		raise HTTPException(status_code=400, detail="Could not identify a task to update")
-	# Find new title and/or date in the text
+	# Extract new title and/or date
 	date_iso = parse_date(text)
 	new_title: Optional[str] = None
-	# naive patterns: 'to XYZ' or 'as XYZ' or 'title XYZ'
-	m2 = re.search(r"\bto\s+(.+)$", text, re.IGNORECASE)
-	if m2:
-		new_title = m2.group(1).strip()
-	if not new_title:
-		m3 = re.search(r"\bas\s+(.+)$", text, re.IGNORECASE)
-		if m3:
-			new_title = m3.group(1).strip()
-	if not new_title:
-		m4 = re.search(r"\btitle\s+(.+)$", text, re.IGNORECASE)
-		if m4:
-			new_title = m4.group(1).strip()
+	# Handle 'toXYZ' (no space) and 'to XYZ'
+	m_to = re.search(r"\bto\s*(.+)$", text, re.IGNORECASE)
+	if m_to:
+		new_title = m_to.group(1).strip()
+	else:
+		# Try 'as XYZ' or 'title XYZ'
+		m_as = re.search(r"\bas\s+(.+)$", text, re.IGNORECASE)
+		if m_as:
+			new_title = m_as.group(1).strip()
+		else:
+			m_title = re.search(r"\btitle\s+(.+)$", text, re.IGNORECASE)
+			if m_title:
+				new_title = m_title.group(1).strip()
+	# If we have both a new title and a date token inside it, strip the date token out of title
+	if new_title:
+		if date_iso:
+			new_title = re.sub(r"\b" + re.escape(date_iso) + r"\b", "", new_title).strip()
+			new_title = re.sub(r"\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}\b", "", new_title).strip()
+	# If neither title nor date found, return clear error
+	if (not new_title or new_title == "") and (not date_iso or date_iso == ""):
+		raise HTTPException(status_code=400, detail="Nothing to update. Provide a new title (e.g., 'to <new title>') or a date.")
 	row = update_task_title_or_date(task_id, new_title, date_iso, owner_hash=body.hash)
 	return {"message": f"Updated task {task_id}", "task": row}
 
