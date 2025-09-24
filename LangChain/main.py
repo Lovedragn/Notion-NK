@@ -27,6 +27,7 @@ app.add_middleware(
 	allow_headers=["*"],
 )
 
+# ----- DB Helpers -----
 
 def get_conn():
 	return pymysql.connect(
@@ -51,15 +52,25 @@ def fetch_tasks_by_hash(url_hash: str) -> List[Dict[str, Any]]:
 			return list(cur.fetchall())
 
 
-def create_task_for_hash(url_hash: str, title: str, task_date_iso: Optional[str]) -> Dict[str, Any]:
-	# Resolve user email from hash
+def get_user_email_by_hash(url_hash: str) -> Optional[str]:
 	with get_conn() as conn:
 		with conn.cursor() as cur:
 			cur.execute("SELECT email FROM users WHERE url_hash=%s", (url_hash,))
 			row = cur.fetchone()
-			if not row:
-				raise HTTPException(status_code=404, detail="User not found for hash")
-			email = row["email"]
+			return row["email"] if row else None
+
+
+def create_task_for_hash(url_hash: str, title: str, task_date_iso: Optional[str]) -> Dict[str, Any]:
+	# Resolve user email from hash
+	email = get_user_email_by_hash(url_hash)
+	if not email:
+		raise HTTPException(status_code=404, detail="User not found for hash")
+	# If date missing/invalid, default to today
+	from datetime import datetime
+	if not task_date_iso:
+		task_date_iso = datetime.now().strftime("%Y-%m-%d")
+	with get_conn() as conn:
+		with conn.cursor() as cur:
 			cur.execute(
 				"INSERT INTO tasks (task_date, title, user_email) VALUES (%s, %s, %s)",
 				(task_date_iso, title, email),
@@ -82,10 +93,10 @@ def update_task_title_or_date(task_id: int, title: Optional[str], task_date_iso:
 			# Build dynamic update
 			sets = []
 			args: List[Any] = []
-			if title is not None:
+			if title is not None and title != "":
 				sets.append("title=%s")
 				args.append(title)
-			if task_date_iso is not None:
+			if task_date_iso is not None and task_date_iso != "":
 				sets.append("task_date=%s")
 				args.append(task_date_iso)
 			if not sets:
@@ -98,6 +109,17 @@ def update_task_title_or_date(task_id: int, title: Optional[str], task_date_iso:
 				raise HTTPException(status_code=404, detail="Task not found")
 			return row
 
+
+def delete_task_by_id(task_id: int, owner_hash: str) -> None:
+	with get_conn() as conn:
+		with conn.cursor() as cur:
+			cur.execute(
+				"DELETE t FROM tasks t JOIN users u ON u.email=t.user_email WHERE t.id=%s AND u.url_hash=%s",
+				(task_id, owner_hash),
+			)
+			if cur.rowcount == 0:
+				raise HTTPException(status_code=404, detail="Task not found or not owned by user")
+
 # ----- In-memory chat history -----
 HISTORY: Dict[str, deque] = defaultdict(lambda: deque(maxlen=50))
 
@@ -106,12 +128,19 @@ class AskBody(BaseModel):
 	query: str
 	hash: Optional[str] = Field(None, description="user hash for scoping and history")
 
+class SummarizeBody(BaseModel):
+	hash: Optional[str] = Field(None, description="user hash for scoping tasks")
+
 class CreateBody(BaseModel):
 	prompt: str
 	hash: str
 
 class UpdateBody(BaseModel):
 	prompt: str
+	hash: str
+
+class DeleteBody(BaseModel):
+	id: int
 	hash: str
 
 # ----- Utilities -----
@@ -166,7 +195,7 @@ def ask(body: AskBody):
 
 
 @app.post("/summarize")
-def summarize(body: AskBody):
+def summarize(body: SummarizeBody):
 	from datetime import datetime
 	items = fetch_tasks_by_hash(body.hash) if body.hash else []
 	today = datetime.now().date()
@@ -207,10 +236,9 @@ def create_task(body: CreateBody):
 	# If prompt contains a date, split title and date
 	date_iso = parse_date(title)
 	if date_iso:
-		# remove the date token from title for cleanliness
+		# remove a matching date token from title for cleanliness (both iso and common dd/mm/yyyy)
 		import re
 		title = re.sub(r"\b" + re.escape(date_iso) + r"\b", "", title).strip()
-		# also try removing dd/mm/yyyy pattern occurrences
 		title = re.sub(r"\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}\b", "", title).strip()
 	created = create_task_for_hash(body.hash, title, date_iso)
 	return {"message": f"Created task: {created.get('title')}", "task": created}
@@ -232,7 +260,7 @@ def update_task(body: UpdateBody):
 	# Find new title and/or date in the text
 	date_iso = parse_date(text)
 	new_title: Optional[str] = None
-	# naive pattern: 'to XYZ' or 'as XYZ'
+	# naive patterns: 'to XYZ' or 'as XYZ' or 'title XYZ'
 	m2 = re.search(r"\bto\s+(.+)$", text, re.IGNORECASE)
 	if m2:
 		new_title = m2.group(1).strip()
@@ -240,8 +268,20 @@ def update_task(body: UpdateBody):
 		m3 = re.search(r"\bas\s+(.+)$", text, re.IGNORECASE)
 		if m3:
 			new_title = m3.group(1).strip()
+	if not new_title:
+		m4 = re.search(r"\btitle\s+(.+)$", text, re.IGNORECASE)
+		if m4:
+			new_title = m4.group(1).strip()
 	row = update_task_title_or_date(task_id, new_title, date_iso, owner_hash=body.hash)
 	return {"message": f"Updated task {task_id}", "task": row}
+
+
+@app.post("/delete-task")
+def delete_task(body: DeleteBody):
+	if not body.hash:
+		raise HTTPException(status_code=400, detail="hash required")
+	delete_task_by_id(body.id, body.hash)
+	return {"message": f"Deleted task {body.id}"}
 
 
 @app.get("/history/{hash}")
