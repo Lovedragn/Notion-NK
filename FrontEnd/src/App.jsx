@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router";
-import ChatAssistant from "./Chat/ChatAssistant";
+import ChatAssistant from "./Components/ChatAssistant";
+import logo from "./assets/headphone-user.gif";
 
 const App = () => {
   const { hash } = useParams();
@@ -8,6 +9,8 @@ const App = () => {
   const [tasks, setTasks] = useState([]);
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
+
+  const [bot_toggle, setbot_toggle] = useState(false);
   const baseUrl = "http://localhost:8080";
   const token = useMemo(() => localStorage.getItem("token") || "", []);
 
@@ -18,12 +21,16 @@ const App = () => {
   };
 
   const loadTasks = async () => {
-    const res = await fetch(`${baseUrl}/tasks/hash/${hash}`, { headers: { Authorization: `Bearer ${token}` } });
+    const res = await fetch(`${baseUrl}/tasks/hash/${hash}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     const data = await res.json();
     console.log("tasks api response", data);
     const normalized = Array.isArray(data)
       ? data
-      : (data && typeof data === "object" ? Object.values(data) : []);
+      : data && typeof data === "object"
+      ? Object.values(data)
+      : [];
     setTasks(normalized);
   };
 
@@ -35,7 +42,10 @@ const App = () => {
     e.preventDefault();
     const res = await fetch(`${baseUrl}/tasks/hash/${hash}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify({ title, taskDate: date }),
     });
     if (res.ok) {
@@ -48,14 +58,20 @@ const App = () => {
   const updateTask = async (id, next) => {
     const res = await fetch(`${baseUrl}/tasks/${id}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify(next),
     });
     if (res.ok) loadTasks();
   };
 
   const deleteTask = async (id) => {
-    const res = await fetch(`${baseUrl}/tasks/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    const res = await fetch(`${baseUrl}/tasks/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
     if (res.ok) loadTasks();
   };
 
@@ -66,7 +82,9 @@ const App = () => {
           <h1 className="text-xl font-semibold">Knot Tasks</h1>
           <div className="flex items-center gap-3">
             <div className="text-sm text-neutral-400">Secure workspace</div>
-            <button className="btn-danger" onClick={logout}>Logout</button>
+            <button className="btn-danger" onClick={logout}>
+              Logout
+            </button>
           </div>
         </div>
       </header>
@@ -88,7 +106,9 @@ const App = () => {
               onChange={(e) => setDate(e.target.value)}
               required
             />
-            <button className="btn-primary" type="submit">Add</button>
+            <button className="btn-primary" type="submit">
+              Add
+            </button>
           </form>
         </div>
 
@@ -100,12 +120,17 @@ const App = () => {
           </div>
           <div className="max-h-[60vh] overflow-y-auto">
             {tasks.map((t) => (
-              <div key={t.id} className="grid grid-cols-12 gap-3 px-4 py-3 border-b border-neutral-800 items-center odd:bg-neutral-900/40 even:bg-neutral-950/40">
+              <div
+                key={t.id}
+                className="grid grid-cols-12 gap-3 px-4 py-3 border-b border-neutral-800 items-center odd:bg-neutral-900/40 even:bg-neutral-950/40"
+              >
                 <div className="col-span-7">
                   <input
                     className="input w-full"
                     value={t.title}
-                    onChange={(e) => updateTask(t.id, { ...t, title: e.target.value })}
+                    onChange={(e) =>
+                      updateTask(t.id, { ...t, title: e.target.value })
+                    }
                   />
                 </div>
                 <div className="col-span-3">
@@ -113,25 +138,42 @@ const App = () => {
                     type="date"
                     className="input w-full"
                     value={t.taskDate || ""}
-                    onChange={(e) => updateTask(t.id, { ...t, taskDate: e.target.value })}
+                    onChange={(e) =>
+                      updateTask(t.id, { ...t, taskDate: e.target.value })
+                    }
                   />
                 </div>
                 <div className="col-span-2 flex justify-end">
-                  <button className="btn-danger" onClick={() => deleteTask(t.id)}>Delete</button>
+                  <button
+                    className="btn-danger"
+                    onClick={() => deleteTask(t.id)}
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
             ))}
             {tasks.length === 0 && (
-              <div className="px-4 py-6 text-neutral-400 text-sm">No tasks yet. Create your first task above.</div>
+              <div className="px-4 py-6 text-neutral-400 text-sm">
+                No tasks yet. Create your first task above.
+              </div>
             )}
           </div>
         </div>
-
-        <div className="card p-4">
-          <h2 className="text-lg font-semibold mb-3">AI Assistant</h2>
-          <ChatAssistant userId={null} hash={hash} token={token} />
-        </div>
       </main>
+      <div
+        className="card fixed bottom-5 right-5 bg-white/90 rounded-full w-10 h-10 z-100 overflow-hidden"
+        onClick={() => setbot_toggle((prev) => !prev)}
+      >
+        {bot_toggle ? (
+          <ChatAssistant
+            bot_toggle={bot_toggle}
+            setbot_toggle={setbot_toggle}
+          />
+        ) : (
+          <img src={logo} className="w-full h-full scale-75" />
+        )}
+      </div>
     </div>
   );
 };
