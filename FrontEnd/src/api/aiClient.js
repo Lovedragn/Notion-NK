@@ -14,10 +14,10 @@ async function postJson(path, body) {
 }
 
 export const aiClient = {
-	ask: (query, userId, token) => postJson("/ask", { query, userId, token }),
-	summarize: (userId, token) => postJson("/summarize", { userId, token }),
+	ask: (query, userId, hash, token) => postJson("/ask", { query, userId, hash, token }),
+	summarize: (userId, hash, token) => postJson("/summarize", { userId, hash, token }),
 	createTask: (prompt, userId, hash, token) => postJson("/create-task", { prompt, userId, hash, token }),
-	updateTask: (prompt, userId, token) => postJson("/update-task", { prompt, userId, token }),
+	updateTask: (prompt, userId, hash, token) => postJson("/update-task", { prompt, userId, hash, token }),
 };
 
 export default aiClient;

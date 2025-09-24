@@ -19,16 +19,16 @@ const ChatAssistant = ({ userId, hash, token }) => {
 		try {
 			let reply;
 			if (text.toLowerCase() === "summarize") {
-				const res = await aiClient.summarize(userId, token);
+				const res = await aiClient.summarize(userId, hash, token);
 				reply = res.summary || JSON.stringify(res);
 			} else if (text.toLowerCase().startsWith("add ") || text.toLowerCase().startsWith("create ")) {
 				const res = await aiClient.createTask(text, userId, hash, token);
 				reply = res.message || "Task created.";
 			} else if (text.toLowerCase().startsWith("update ") || text.toLowerCase().startsWith("mark ")) {
-				const res = await aiClient.updateTask(text, userId, token);
+				const res = await aiClient.updateTask(text, userId, hash, token);
 				reply = res.message || "Task updated.";
 			} else {
-				const res = await aiClient.ask(text, userId, token);
+				const res = await aiClient.ask(text, userId, hash, token);
 				reply = res.answer || JSON.stringify(res);
 			}
 			setMessages((m) => [...m, { role: "assistant", content: reply }]);
