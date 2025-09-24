@@ -143,6 +143,10 @@ class DeleteBody(BaseModel):
 	id: int
 	hash: str
 
+class RefineBody(BaseModel):
+	prompt: str
+	hash: Optional[str] = None
+
 # ----- Utilities -----
 
 def parse_date(text: str) -> Optional[str]:
@@ -159,6 +163,15 @@ def parse_date(text: str) -> Optional[str]:
 		except Exception:
 			continue
 	return None
+
+
+def strip_date_tokens(text: str, date_iso: Optional[str]) -> str:
+	import re
+	res = text
+	if date_iso:
+		res = re.sub(r"\b" + re.escape(date_iso) + r"\b", "", res).strip()
+	res = re.sub(r"\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}\b", "", res).strip()
+	return res
 
 
 def find_task_id_by_title_fragment(url_hash: str, text: str) -> Optional[int]:
@@ -238,8 +251,7 @@ def create_task(body: CreateBody):
 	if date_iso:
 		# remove a matching date token from title for cleanliness (both iso and common dd/mm/yyyy)
 		import re
-		title = re.sub(r"\b" + re.escape(date_iso) + r"\b", "", title).strip()
-		title = re.sub(r"\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}\b", "", title).strip()
+		title = strip_date_tokens(title, date_iso)
 	created = create_task_for_hash(body.hash, title, date_iso)
 	return {"message": f"Created task: {created.get('title')}", "task": created}
 
@@ -264,21 +276,19 @@ def update_task(body: UpdateBody):
 	# Handle 'toXYZ' (no space) and 'to XYZ'
 	m_to = re.search(r"\bto\s*(.+)$", text, re.IGNORECASE)
 	if m_to:
-		new_title = m_to.group(1).strip()
+		new_title = strip_date_tokens(m_to.group(1).strip(), date_iso)
 	else:
 		# Try 'as XYZ' or 'title XYZ'
 		m_as = re.search(r"\bas\s+(.+)$", text, re.IGNORECASE)
 		if m_as:
-			new_title = m_as.group(1).strip()
+			new_title = strip_date_tokens(m_as.group(1).strip(), date_iso)
 		else:
 			m_title = re.search(r"\btitle\s+(.+)$", text, re.IGNORECASE)
 			if m_title:
-				new_title = m_title.group(1).strip()
+				new_title = strip_date_tokens(m_title.group(1).strip(), date_iso)
 	# If we have both a new title and a date token inside it, strip the date token out of title
 	if new_title:
-		if date_iso:
-			new_title = re.sub(r"\b" + re.escape(date_iso) + r"\b", "", new_title).strip()
-			new_title = re.sub(r"\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}\b", "", new_title).strip()
+		new_title = strip_date_tokens(new_title, date_iso)
 	# If neither title nor date found, return clear error
 	if (not new_title or new_title == "") and (not date_iso or date_iso == ""):
 		raise HTTPException(status_code=400, detail="Nothing to update. Provide a new title (e.g., 'to <new title>') or a date.")
@@ -297,3 +307,46 @@ def delete_task(body: DeleteBody):
 @app.get("/history/{hash}")
 def get_history(hash: str):
 	return {"messages": list(HISTORY[(hash or 'default').strip() or 'default'])}
+
+
+@app.post("/refine")
+def refine(body: RefineBody):
+	text = (body.prompt or "").strip()
+	if not text:
+		raise HTTPException(status_code=400, detail="Empty prompt")
+	import re
+	lower = text.lower()
+	intent: str = "ask"
+	if any(k in lower for k in ["summarize", "summary"]):
+		intent = "summarize"
+	elif any(k in lower.split() for k in ["add", "create", "new"]):
+		intent = "create"
+	elif any(k in lower.split() for k in ["delete", "remove", "del"]):
+		intent = "delete"
+	elif any(k in lower.split() for k in ["update", "mark", "rename", "change"]):
+		intent = "update"
+	# Extracts
+	date_iso = parse_date(text)
+	id_match = re.search(r"(?:#|\b(?:id|task)\b\s*)(\d{1,10})\b", text, re.IGNORECASE)
+	ref_id: Optional[int] = int(id_match.group(1)) if id_match else None
+	new_title: Optional[str] = None
+	if intent == "create":
+		# Title is raw minus verbs and date tokens
+		raw = strip_date_tokens(text, date_iso)
+		raw = re.sub(r"\b(add|create|new|task|tasks)\b", "", raw, flags=re.IGNORECASE).strip()
+		title = re.sub(r"\s{2,}", " ", raw).strip()
+		return {"intent": intent, "title": title, "date": date_iso}
+	elif intent == "update":
+		m_to = re.search(r"\bto\s*(.+)$", text, re.IGNORECASE)
+		if m_to:
+			new_title = strip_date_tokens(m_to.group(1).strip(), date_iso)
+		else:
+			m_as = re.search(r"\bas\s+(.+)$", text, re.IGNORECASE)
+			if m_as:
+				new_title = strip_date_tokens(m_as.group(1).strip(), date_iso)
+		return {"intent": intent, "id": ref_id, "title": new_title, "date": date_iso}
+	elif intent == "delete":
+		return {"intent": intent, "id": ref_id}
+	elif intent == "summarize":
+		return {"intent": intent, "hash": body.hash}
+	return {"intent": intent}
