@@ -174,6 +174,17 @@ def strip_date_tokens(text: str, date_iso: Optional[str]) -> str:
 	return res
 
 
+def clean_title_verbs(text: str) -> str:
+	# Remove leading verbs like 'add', 'create', 'new', 'task', 'tasks'
+	import re
+	res = re.sub(r"^(?:\s*(add|create|new|task|tasks)\b)+\s*", "", text, flags=re.IGNORECASE)
+	# Remove dangling prepositions at the end after date removal (e.g., 'at', 'on')
+	res = re.sub(r"\b(at|on)\b\s*$", "", res, flags=re.IGNORECASE).strip()
+	# Collapse multiple spaces
+	res = re.sub(r"\s{2,}", " ", res).strip()
+	return res
+
+
 def find_task_id_by_title_fragment(url_hash: str, text: str) -> Optional[int]:
 	text_l = text.lower()
 	items = fetch_tasks_by_hash(url_hash)
@@ -250,8 +261,9 @@ def create_task(body: CreateBody):
 	date_iso = parse_date(title)
 	if date_iso:
 		# remove a matching date token from title for cleanliness (both iso and common dd/mm/yyyy)
-		import re
 		title = strip_date_tokens(title, date_iso)
+	# Remove leading verbs and dangling prepositions
+	title = clean_title_verbs(title)
 	created = create_task_for_hash(body.hash, title, date_iso)
 	return {"message": f"Created task: {created.get('title')}", "task": created}
 
@@ -276,16 +288,16 @@ def update_task(body: UpdateBody):
 	# Handle 'toXYZ' (no space) and 'to XYZ'
 	m_to = re.search(r"\bto\s*(.+)$", text, re.IGNORECASE)
 	if m_to:
-		new_title = strip_date_tokens(m_to.group(1).strip(), date_iso)
+		new_title = m_to.group(1).strip()
 	else:
 		# Try 'as XYZ' or 'title XYZ'
 		m_as = re.search(r"\bas\s+(.+)$", text, re.IGNORECASE)
 		if m_as:
-			new_title = strip_date_tokens(m_as.group(1).strip(), date_iso)
+			new_title = m_as.group(1).strip()
 		else:
 			m_title = re.search(r"\btitle\s+(.+)$", text, re.IGNORECASE)
 			if m_title:
-				new_title = strip_date_tokens(m_title.group(1).strip(), date_iso)
+				new_title = m_title.group(1).strip()
 	# If we have both a new title and a date token inside it, strip the date token out of title
 	if new_title:
 		new_title = strip_date_tokens(new_title, date_iso)
@@ -334,6 +346,7 @@ def refine(body: RefineBody):
 		# Title is raw minus verbs and date tokens
 		raw = strip_date_tokens(text, date_iso)
 		raw = re.sub(r"\b(add|create|new|task|tasks)\b", "", raw, flags=re.IGNORECASE).strip()
+		raw = re.sub(r"\b(at|on)\b\s*$", "", raw, flags=re.IGNORECASE).strip()
 		title = re.sub(r"\s{2,}", " ", raw).strip()
 		return {"intent": intent, "title": title, "date": date_iso}
 	elif intent == "update":
