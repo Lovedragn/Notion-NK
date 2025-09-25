@@ -62,11 +62,6 @@ const ChatAssistant = ({ userId, hash, token, bot_toggle , setbot_toggle }) => {
 
   return (
     <div className="card p-4 flex flex-col h-full max-w-150">
-      <div
-        className="card fixed bottom-5 right-5 bg-white/90 rounded-full w-10 h-10 z-100 overflow-hidden"
-        onClick={() => setbot_toggle(prev => !prev)}
-      />
-      
       <div ref={listRef} className="flex-1 overflow-y-auto space-y-3 pr-1">
         {messages.map((m, idx) => (
           <div

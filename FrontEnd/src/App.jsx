@@ -5,7 +5,7 @@ import logo from "./assets/headphone-user.gif";
 
 const App = () => {
   const { hash } = useParams();
-
+  const urlHash = hash || localStorage.getItem("hash") || "";
   const [tasks, setTasks] = useState([]);
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
@@ -161,19 +161,40 @@ const App = () => {
           </div>
         </div>
       </main>
-      <div
-        className="card fixed bottom-5 right-5 bg-white/90 rounded-full w-10 h-10 z-100 overflow-hidden"
-        onClick={() => setbot_toggle((prev) => !prev)}
-      >
-        {bot_toggle ? (
-          <ChatAssistant
-            bot_toggle={bot_toggle}
-            setbot_toggle={setbot_toggle}
-          />
-        ) : (
+      {!bot_toggle && (
+        <button
+          className="card fixed bottom-5 right-5 bg-white/90 rounded-full w-10 h-10 z-100 overflow-hidden"
+          onClick={() => setbot_toggle(true)}
+          aria-label="Open chat assistant"
+        >
           <img src={logo} className="w-full h-full scale-75" />
-        )}
-      </div>
+        </button>
+      )}
+
+      {bot_toggle && (
+        <div className="fixed bottom-5 right-5 w-[320px] h-[420px] z-[100]">
+          <div className="card w-full h-full overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-800">
+              <div className="text-sm font-medium">Assistant</div>
+              <button
+                className="btn-danger px-2 py-1 text-xs"
+                onClick={() => setbot_toggle(false)}
+                aria-label="Close chat assistant"
+              >
+                Close
+              </button>
+            </div>
+            <div className="flex-1 min-h-0">
+              <ChatAssistant
+                bot_toggle={bot_toggle}
+                setbot_toggle={setbot_toggle}
+                token={token}
+                hash={urlHash}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

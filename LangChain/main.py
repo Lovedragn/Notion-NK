@@ -3,16 +3,10 @@ from typing import Any, Dict, List, Optional
 from collections import defaultdict, deque
 
 import pymysql
-from fastapi import FastAPI, HTTPException
+
+from fastapi import FastAPI, HTTPException 
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-
-# ----- Config -----
-MYSQL_HOST = os.getenv("MYSQL_HOST", "localhost")
-MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
-MYSQL_USER = os.getenv("MYSQL_USER", "root")
-MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "Sujith@6212")
-MYSQL_DB = os.getenv("MYSQL_DB", "knot")
 
 FRONTEND_ORIGINS = os.getenv("FRONTEND_ORIGINS", "*")
 
@@ -31,11 +25,11 @@ app.add_middleware(
 
 def get_conn():
 	return pymysql.connect(
-		host=MYSQL_HOST,
-		port=MYSQL_PORT,
-		user=MYSQL_USER,
-		password=MYSQL_PASSWORD,
-		database=MYSQL_DB,
+		host=os.getenv("MYSQL_HOST", "localhost"),
+		port=int(os.getenv("MYSQL_PORT", "3306")),
+		user=os.getenv("MYSQL_USER", "root"),
+		password=os.getenv("MYSQL_PASSWORD", "Sujith@6212"),
+		database=os.getenv("MYSQL_DB", "knot"),
 		cursorclass=pymysql.cursors.DictCursor,
 		autocommit=True,
 	)
@@ -119,7 +113,7 @@ def delete_task_by_id(task_id: int, owner_hash: str) -> None:
 			)
 			if cur.rowcount == 0:
 				raise HTTPException(status_code=404, detail="Task not found or not owned by user")
-
+  
 # ----- In-memory chat history -----
 HISTORY: Dict[str, deque] = defaultdict(lambda: deque(maxlen=50))
 
