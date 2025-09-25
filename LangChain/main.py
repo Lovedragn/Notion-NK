@@ -190,6 +190,57 @@ def find_task_id_by_title_fragment(url_hash: str, text: str) -> Optional[int]:
 			return int(t["id"]) if t.get("id") is not None else None
 	return None
 
+# ----- LangChain-based extraction (optional) -----
+def llm_extract_intent_and_fields(prompt: str) -> Optional[Dict[str, Any]]:
+	"""Use LangChain (if configured) to extract intent and fields.
+
+	Returns a dict like: { intent, id?, title?, date? }
+	If LLM is not configured, returns None to fall back to regex.
+	"""
+	model_name = os.getenv("LLM_MODEL") or os.getenv("OPENAI_MODEL")
+	api_key = os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY") or os.getenv("GROQ_API_KEY")
+	if not api_key:
+		return None
+	try:
+		# Import lazily so environments without langchain still work
+		from langchain_core.prompts import ChatPromptTemplate
+		from langchain_core.output_parsers import JsonOutputParser
+		from langchain_core.pydantic_v1 import BaseModel as LCBaseModel, Field as LCField
+		# Select a model provider based on available keys
+		llm = None
+		if os.getenv("OPENAI_API_KEY"):
+			from langchain_openai import ChatOpenAI
+			llm = ChatOpenAI(model=model_name or "gpt-4o-mini", temperature=0)
+		elif os.getenv("ANTHROPIC_API_KEY"):
+			from langchain_anthropic import ChatAnthropic
+			llm = ChatAnthropic(model=model_name or "claude-3-5-sonnet-20240620", temperature=0)
+		elif os.getenv("GROQ_API_KEY"):
+			from langchain_groq import ChatGroq
+			llm = ChatGroq(model=model_name or "llama-3.1-70b-versatile", temperature=0)
+		else:
+			return None
+
+		class ExtractSchema(LCBaseModel):
+			intent: str = LCField(description="one of: ask, create, update, delete, summarize")
+			id: Optional[int] = LCField(default=None, description="task id if mentioned")
+			title: Optional[str] = LCField(default=None, description="task title if present")
+			date: Optional[str] = LCField(default=None, description="date in ISO YYYY-MM-DD if present")
+
+		parser = JsonOutputParser(pydantic_object=ExtractSchema)
+		prompt_t = ChatPromptTemplate.from_messages([
+			("system", "You extract task intents and fields from natural language. Output strict JSON."),
+			("user", "{input}\n\nReturn fields: intent,id,title,date. Date must be ISO YYYY-MM-DD if any."),
+		])
+		chain = prompt_t | llm | parser
+		res = chain.invoke({"input": prompt})
+		# Ensure minimal shape
+		if not isinstance(res, dict) or "intent" not in res:
+			return None
+		return res
+	except Exception:
+		# Fail silent to fallback
+		return None
+
 # ----- Endpoints -----
 @app.post("/ask")
 def ask(body: AskBody):
@@ -250,14 +301,18 @@ def summarize(body: SummarizeBody):
 def create_task(body: CreateBody):
 	if not body.hash:
 		raise HTTPException(status_code=400, detail="hash required")
-	title = body.prompt.strip()
-	# If prompt contains a date, split title and date
-	date_iso = parse_date(title)
-	if date_iso:
-		# remove a matching date token from title for cleanliness (both iso and common dd/mm/yyyy)
-		title = strip_date_tokens(title, date_iso)
-	# Remove leading verbs and dangling prepositions
-	title = clean_title_verbs(title)
+	# Try LLM extraction first
+	extracted = llm_extract_intent_and_fields(body.prompt)
+	if extracted and extracted.get("intent") in ("create", "add"):
+		date_iso = extracted.get("date") or parse_date(body.prompt)
+		title = extracted.get("title") or body.prompt.strip()
+	else:
+		# Fallback to regex utilities
+		title = body.prompt.strip()
+		date_iso = parse_date(title)
+		if date_iso:
+			title = strip_date_tokens(title, date_iso)
+		title = clean_title_verbs(title)
 	created = create_task_for_hash(body.hash, title, date_iso)
 	return {"message": f"Created task: {created.get('title')}", "task": created}
 
@@ -268,34 +323,39 @@ def update_task(body: UpdateBody):
 		raise HTTPException(status_code=400, detail="hash required")
 	text = body.prompt.strip()
 	import re
-	# Accept ID only if clearly specified: '#123', 'id 123', or 'task 123'
-	id_match = re.search(r"(?:#|\b(?:id|task)\b\s*)(\d{1,10})\b", text, re.IGNORECASE)
-	task_id: Optional[int] = int(id_match.group(1)) if id_match else None
-	if not task_id:
-		# Otherwise, resolve by title within user's hash (ignoring numbers like '4 min')
-		task_id = find_task_id_by_title_fragment(body.hash, text)
+	# Try LLM extraction first
+	extracted = llm_extract_intent_and_fields(text)
+	if extracted and extracted.get("intent") == "update":
+		task_id = extracted.get("id")
+		new_title = extracted.get("title")
+		date_iso = extracted.get("date") or parse_date(text)
+		# If LLM did not return an id, try resolving by title within user's scope
+		if not task_id:
+			task_id = find_task_id_by_title_fragment(body.hash, text)
+	else:
+		# Fallback to regex utilities
+		id_match = re.search(r"(?:#|\b(?:id|task)\b\s*)(\d{1,10})\b", text, re.IGNORECASE)
+		task_id: Optional[int] = int(id_match.group(1)) if id_match else None
+		if not task_id:
+			task_id = find_task_id_by_title_fragment(body.hash, text)
+		date_iso = parse_date(text)
+		new_title: Optional[str] = None
+		m_to = re.search(r"\bto\s*(.+)$", text, re.IGNORECASE)
+		if m_to:
+			new_title = m_to.group(1).strip()
+		else:
+			m_as = re.search(r"\bas\s+(.+)$", text, re.IGNORECASE)
+			if m_as:
+				new_title = m_as.group(1).strip()
+			else:
+				m_title = re.search(r"\btitle\s+(.+)$", text, re.IGNORECASE)
+				if m_title:
+					new_title = m_title.group(1).strip()
+	# Ensure we have an id before proceeding
 	if not task_id:
 		raise HTTPException(status_code=400, detail="Could not identify a task to update")
-	# Extract new title and/or date
-	date_iso = parse_date(text)
-	new_title: Optional[str] = None
-	# Handle 'toXYZ' (no space) and 'to XYZ'
-	m_to = re.search(r"\bto\s*(.+)$", text, re.IGNORECASE)
-	if m_to:
-		new_title = m_to.group(1).strip()
-	else:
-		# Try 'as XYZ' or 'title XYZ'
-		m_as = re.search(r"\bas\s+(.+)$", text, re.IGNORECASE)
-		if m_as:
-			new_title = m_as.group(1).strip()
-		else:
-			m_title = re.search(r"\btitle\s+(.+)$", text, re.IGNORECASE)
-			if m_title:
-				new_title = m_title.group(1).strip()
-	# If we have both a new title and a date token inside it, strip the date token out of title
 	if new_title:
 		new_title = strip_date_tokens(new_title, date_iso)
-	# If neither title nor date found, return clear error
 	if (not new_title or new_title == "") and (not date_iso or date_iso == ""):
 		raise HTTPException(status_code=400, detail="Nothing to update. Provide a new title (e.g., 'to <new title>') or a date.")
 	row = update_task_title_or_date(task_id, new_title, date_iso, owner_hash=body.hash)
@@ -321,6 +381,12 @@ def refine(body: RefineBody):
 	if not text:
 		raise HTTPException(status_code=400, detail="Empty prompt")
 	import re
+	extracted = llm_extract_intent_and_fields(text)
+	if extracted:
+		# Normalize and guarantee ISO date fallback
+		extracted["date"] = extracted.get("date") or parse_date(text)
+		return extracted
+	# Fallback regex heuristics
 	lower = text.lower()
 	intent: str = "ask"
 	if any(k in lower for k in ["summarize", "summary"]):
@@ -331,13 +397,11 @@ def refine(body: RefineBody):
 		intent = "delete"
 	elif any(k in lower.split() for k in ["update", "mark", "rename", "change"]):
 		intent = "update"
-	# Extracts
 	date_iso = parse_date(text)
 	id_match = re.search(r"(?:#|\b(?:id|task)\b\s*)(\d{1,10})\b", text, re.IGNORECASE)
 	ref_id: Optional[int] = int(id_match.group(1)) if id_match else None
 	new_title: Optional[str] = None
 	if intent == "create":
-		# Title is raw minus verbs and date tokens
 		raw = strip_date_tokens(text, date_iso)
 		raw = re.sub(r"\b(add|create|new|task|tasks)\b", "", raw, flags=re.IGNORECASE).strip()
 		raw = re.sub(r"\b(at|on)\b\s*$", "", raw, flags=re.IGNORECASE).strip()

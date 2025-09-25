@@ -173,7 +173,7 @@ const App = () => {
 
       {bot_toggle && (
         <div className="fixed bottom-5 right-5 w-[320px] h-[420px] z-[100]">
-          <div className="card w-full h-full overflow-hidden flex flex-col">
+          <div className="card w-full h-full overflow-hidden flex flex-col rounded-full">
             <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-800">
               <div className="text-sm font-medium">Assistant</div>
               <button
@@ -184,7 +184,7 @@ const App = () => {
                 Close
               </button>
             </div>
-            <div className="flex-1 min-h-0">
+            <div className="flex-1 min-h-0 rounded-full">
               <ChatAssistant
                 bot_toggle={bot_toggle}
                 setbot_toggle={setbot_toggle}
