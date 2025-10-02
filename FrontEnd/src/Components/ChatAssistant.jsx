@@ -1,8 +1,7 @@
 import { useMemo, useRef, useState } from "react";
-import aiClient from "../api/aiClient";
 import logo from "../assets/headphone-user.gif";
 
-const ChatAssistant = ({ userId, hash, token, bot_toggle , setbot_toggle }) => {
+const ChatAssistant = ({ token, bot_toggle, setbot_toggle }) => {
   const [messages, setMessages] = useState([
     {
       role: "assistant",
@@ -15,6 +14,7 @@ const ChatAssistant = ({ userId, hash, token, bot_toggle , setbot_toggle }) => {
 
   const handleSend = async (e) => {
     e?.preventDefault?.();
+
     const text = input.trim();
     if (!text || loading) return;
     setInput("");
@@ -22,30 +22,26 @@ const ChatAssistant = ({ userId, hash, token, bot_toggle , setbot_toggle }) => {
     setLoading(true);
     try {
       let reply;
-      if (text.toLowerCase() === "summarize") {
-        const res = await aiClient.summarize(userId, hash, token);
-        reply = res.summary || JSON.stringify(res);
-      } else if (
-        text.toLowerCase().startsWith("add ") ||
-        text.toLowerCase().startsWith("create ")
-      ) {
-        const res = await aiClient.createTask(text, userId, hash, token);
-        reply = res.message || "Task created.";
-      } else if (
-        text.toLowerCase().startsWith("update ") ||
-        text.toLowerCase().startsWith("mark ")
-      ) {
-        const res = await aiClient.updateTask(text, userId, hash, token);
-        reply = res.message || "Task updated.";
-      } else {
-        const res = await aiClient.ask(text, userId, hash, token);
-        reply = res.answer || JSON.stringify(res);
+      const AI_BASE_URL = import.meta.env?.VITE_AI_BASE_URL || "http://localhost:8000";
+     
+      const res = await fetch(`${AI_BASE_URL}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(token || {}),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Request failed: ${res.status}`);
       }
+      reply = res.summary || JSON.stringify(res);
       setMessages((m) => [...m, { role: "assistant", content: reply }]);
+        
+      
+     
     } catch (err) {
       setMessages((m) => [
         ...m,
-        { role: "assistant", content: `Error: ${err.message}` },
+        { role: "assistant", content: `Error: Please Try Again Later` },
       ]);
     } finally {
       setLoading(false);

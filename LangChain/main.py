@@ -1,12 +1,13 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from langchain_community.utilities import SQLDatabase
 
 import os
-# import jwt
+import jwt
 import json
 
-from chatbot import main , test
+from chatbot import main
 
 FRONTEND_ORIGINS = os.getenv("FRONTEND_ORIGINS", "*")
 
@@ -20,6 +21,17 @@ app.add_middleware(
 	allow_headers=["*"],
 )
 
+# -------- SQL --------
+
+import urllib.parse
+
+password = urllib.parse.quote_plus("Sujith@6212")
+DB_URL = f"mysql+mysqlconnector://root:{password}@localhost:3306/knot"
+
+db = SQLDatabase.from_uri(DB_URL)
+print("Connected!")
+
+
 def verification(token : str):
     # secret = "sujith-namekart"
     # issuer = "knot"
@@ -32,8 +44,6 @@ def verification(token : str):
     # )
     # print("Token:", token)
     return {"email":"sujith.sappani@gmail.com"}
-
-
 
 #----- request -------
 @app.post("/chat")

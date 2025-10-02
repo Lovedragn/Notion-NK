@@ -12,7 +12,9 @@ const App = () => {
 
   const [bot_toggle, setbot_toggle] = useState(false);
   const baseUrl = "http://localhost:8080";
-  const token = useMemo(() => localStorage.getItem("token") || "", []);
+  const token = useMemo(() => {
+    return localStorage.getItem("token") || "";
+  }, []);
 
   const logout = () => {
     localStorage.removeItem("token");
@@ -74,7 +76,6 @@ const App = () => {
     });
     if (res.ok) loadTasks();
   };
-
   return (
     <div className="min-h-screen">
       <header className="border-b border-neutral-800">
@@ -189,7 +190,6 @@ const App = () => {
                 bot_toggle={bot_toggle}
                 setbot_toggle={setbot_toggle}
                 token={token}
-                hash={urlHash}
               />
             </div>
           </div>
