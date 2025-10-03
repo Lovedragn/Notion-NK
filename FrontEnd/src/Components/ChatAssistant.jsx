@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import logo from "../assets/headphone-user.gif";
 
-const ChatAssistant = ({ token, bot_toggle, setbot_toggle }) => {
+const ChatAssistant = ({ token }) => {
   const [messages, setMessages] = useState([
     {
       role: "assistant",
@@ -16,28 +16,31 @@ const ChatAssistant = ({ token, bot_toggle, setbot_toggle }) => {
     e?.preventDefault?.();
 
     const text = input.trim();
+   
     if (!text || loading) return;
     setInput("");
     setMessages((m) => [...m, { role: "user", content: text }]);
     setLoading(true);
     try {
       let reply;
-      const AI_BASE_URL = import.meta.env?.VITE_AI_BASE_URL || "http://localhost:8000";
-     
+      const AI_BASE_URL =
+        import.meta.env?.VITE_AI_BASE_URL || "http://localhost:8000";
+
       const res = await fetch(`${AI_BASE_URL}/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(token || {}),
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({"user_input":text} || {}),
       });
       if (!res.ok) {
         const text = await res.text();
         throw new Error(text || `Request failed: ${res.status}`);
       }
-      reply = res.summary || JSON.stringify(res);
+      reply = res.text();
+      console.log(reply)
       setMessages((m) => [...m, { role: "assistant", content: reply }]);
-        
-      
-     
     } catch (err) {
       setMessages((m) => [
         ...m,

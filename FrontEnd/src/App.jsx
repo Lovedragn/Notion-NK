@@ -164,7 +164,7 @@ const App = () => {
       </main>
       {!bot_toggle && (
         <button
-          className="card fixed bottom-5 right-5 bg-white/90 rounded-full w-10 h-10 z-100 overflow-hidden"
+          className="card fixed bottom-5 right-5 bg-white/90 rounded-full w-12 h-12 z-100 overflow-hidden"
           onClick={() => setbot_toggle(true)}
           aria-label="Open chat assistant"
         >
@@ -174,7 +174,7 @@ const App = () => {
 
       {bot_toggle && (
         <div className="fixed bottom-5 right-5 w-[320px] h-[420px] z-[100]">
-          <div className="card w-full h-full overflow-hidden flex flex-col rounded-full">
+          <div className="card w-full h-full overflow-hidden flex flex-col">
             <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-800">
               <div className="text-sm font-medium">Assistant</div>
               <button
@@ -185,11 +185,10 @@ const App = () => {
                 Close
               </button>
             </div>
-            <div className="flex-1 min-h-0 rounded-full">
+            <div className="flex-1 min-h-0 ">
               <ChatAssistant
                 bot_toggle={bot_toggle}
-                setbot_toggle={setbot_toggle}
-                token={token}
+                
               />
             </div>
           </div>

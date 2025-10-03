@@ -29,9 +29,10 @@ Refine it like:
 '"""
 
 def FINAL_OUTPUT():
-    return  """Based on the question , table schema, sql query , sql query response , write a short natural language response :
+    return  """ Generate a short natural language response from question, schema, sql query, and response.
+Any input can be empty or None.
 {question}
 {schema}
 {query}
-{response}
+{response} 
 """
